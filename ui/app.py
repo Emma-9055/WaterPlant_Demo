@@ -202,6 +202,7 @@ with st.sidebar:
             # 从示例文本中提取水厂名称
             plant = get_plant_by_name(text[:4])
             st.session_state["example_plant"] = plant["name"] if plant else ""
+            st.session_state["first_visit"] = False
 
     st.divider()
     st.subheader("📊 工单概览")
@@ -250,6 +251,12 @@ with left_col:
     with st.container(border=True):
         st.subheader("📝 报修信息输入")
 
+        # 首次访问自动填入示例
+        if "first_visit" not in st.session_state:
+            st.session_state["first_visit"] = True
+        if st.session_state["first_visit"] and not st.session_state.get("last_result"):
+            st.info("💡 **首次使用？** 已为您填入示例报修，直接点击 **提交分析** 即可体验。左侧边栏还有更多示例。")
+
         # 水厂下拉选择
         plant_options = [""] + [p["name"] for p in PLANTS]
         default_plant = st.session_state.get("example_plant", "")
@@ -267,7 +274,10 @@ with left_col:
             placeholder="请选择报修水厂...",
         )
 
-        # 报修描述输入
+        # 报修描述输入：首次访问自动填入示例
+        if st.session_state["first_visit"] and not st.session_state.get("example"):
+            st.session_state["example"] = "城北水厂3号送水泵轴承异响严重，振动值超过标准3倍达到12mm/s，温度升高至85°C，该泵为日供水8万吨主力机组。"
+            st.session_state["example_plant"] = "城北水厂"
         default_text = st.session_state.get("example", "")
         description = st.text_area(
             "报修描述",
@@ -286,6 +296,7 @@ with left_col:
         )
 
         if submitted and description.strip():
+            st.session_state["first_visit"] = False
             st.session_state["processing"] = True
             st.session_state["last_description"] = description
             st.session_state["last_plant"] = plant_name
