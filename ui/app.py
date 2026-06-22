@@ -197,8 +197,17 @@ with st.sidebar:
         st.caption("暂无工单，提交报修后将在此显示")
 
     st.divider()
+    # 嵌入模式指示
+    agent = get_agent()
+    mode = agent.embedding_mode
+    if "transformer" in mode.lower():
+        st.success("🧠 嵌入模式: 语义模型", icon="🧠")
+    else:
+        st.warning("⚡ 嵌入模式: 轻量匹配", icon="⚡")
+
+    st.divider()
     st.caption("🏭 水厂报修智能分类系统 v1.0")
-    st.caption("Powered by LangChain + FAISS + Claude")
+    st.caption("Powered by LangChain + FAISS + DeepSeek")
 
 
 # ============================================================
@@ -293,24 +302,50 @@ with left_col:
 
 # ---- 右侧：分类结果 + 工单状态 ----
 with right_col:
-    # 处理中状态
+    # 处理中状态 —— 流式展示 Agent 执行步骤
     if st.session_state.get("processing"):
-        with st.spinner("🤖 Agent 正在分析报修信息..."):
-            try:
-                agent = get_agent()
-                result = agent.run(
+        agent = get_agent()
+        status_container = st.empty()
+
+        try:
+            with status_container.container(border=True):
+                st.markdown("### 🤖 Agent 分析中...")
+                progress_placeholder = st.empty()
+                steps_log = st.empty()
+
+                step_lines = []
+                final_result = None
+
+                for event in agent.run_stream(
                     description=st.session_state["last_description"],
                     plant_name=st.session_state.get("last_plant", ""),
-                )
-                st.session_state["last_result"] = result
-                st.session_state["processing"] = False
-                # 清除示例数据
-                st.session_state.pop("example", None)
-                st.session_state.pop("example_plant", None)
-                st.rerun()
-            except Exception as e:
-                st.error(f"分析出错: {str(e)}")
-                st.session_state["processing"] = False
+                ):
+                    etype = event.get("type", "")
+                    if etype == "tool_start":
+                        step_lines.append(f"⚙️ {event['label']}")
+                    elif etype == "tool_end":
+                        step_lines[-1] = f"✅ {event['label']}"
+                    elif etype == "thinking":
+                        step_lines.append(f"💭 {event['label']}")
+                    elif etype == "done":
+                        final_result = event.get("result", {})
+
+                    # 实时刷新步骤列表
+                    progress_placeholder.markdown(
+                        "\n".join(step_lines) if step_lines else "*正在启动...*"
+                    )
+
+                if final_result:
+                    st.session_state["last_result"] = final_result
+
+            st.session_state["processing"] = False
+            st.session_state.pop("example", None)
+            st.session_state.pop("example_plant", None)
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"分析出错: {str(e)}")
+            st.session_state["processing"] = False
 
     # 分类结果卡片
     if st.session_state.get("last_result"):

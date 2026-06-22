@@ -44,12 +44,26 @@ SYSTEM_PROMPT = """你是一个自来水厂维修报告智能分类助手。你�
 class RepairAgent:
     """水厂报修分类 Agent —— 封装 LangChain Agent 的创建和执行"""
 
+    # 工具中文名称映射（用于 UI 进度展示）
+    TOOL_LABELS = {
+        "classify_repair_report": "正在分类报修类型...",
+        "search_similar_cases": "正在检索历史相似案例...",
+        "create_work_order": "正在创建工单...",
+        "get_plant_contact": "正在查询水厂联系方式...",
+        "update_work_order_status": "正在更新工单状态...",
+    }
+
     def __init__(self, llm=None, vector_store=None):
         self._llm = llm or get_llm()
         self._vector_store = vector_store or get_vector_store()
         self._tools = create_tools(self._vector_store, self._llm)
         self._agent = self._build_agent()
         self.last_result: dict = {}  # 可供 UI 读取的结构化结果
+
+    @property
+    def embedding_mode(self) -> str:
+        """当前嵌入模式"""
+        return getattr(self._vector_store, 'embedding_mode', 'unknown')
 
     def _build_agent(self):
         """构建 LangChain Agent（使用 langgraph）"""
@@ -59,7 +73,81 @@ class RepairAgent:
             prompt=SYSTEM_PROMPT,
         )
 
+    def run_stream(self, description: str, plant_name: str = ""):
+        """
+        流式执行报修分析，逐步骤 yield 进度事件。
+
+        每个事件: {"type": str, "label": str, "detail": str, ...}
+        - type: "thinking" | "tool_start" | "tool_end" | "done"
+        """
+        user_input = f"报修描述：{description}"
+        if plant_name:
+            user_input += f"\n水厂名称：{plant_name}"
+
+        intermediate_steps = []
+        final_output = ""
+
+        # 使用 langgraph stream 逐步骤获取进度
+        for chunk in self._agent.stream(
+            {"messages": [HumanMessage(content=user_input)]},
+            stream_mode="updates",
+        ):
+            for node_name, node_output in chunk.items():
+                if node_name == "agent":
+                    msgs = node_output.get("messages", [])
+                    for msg in msgs:
+                        if hasattr(msg, "tool_calls") and msg.tool_calls:
+                            for tc in msg.tool_calls:
+                                tool_name = tc.get("name", "unknown")
+                                label = self.TOOL_LABELS.get(tool_name, f"调用工具: {tool_name}")
+                                intermediate_steps.append({
+                                    "tool": tool_name,
+                                    "input": tc.get("args", {}),
+                                    "output": None,
+                                })
+                                yield {"type": "tool_start", "tool": tool_name, "label": label}
+
+                elif node_name == "tools":
+                    msgs = node_output.get("messages", [])
+                    for msg in msgs:
+                        if hasattr(msg, "tool_call_id") and msg.tool_call_id:
+                            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                            if intermediate_steps:
+                                intermediate_steps[-1]["output"] = content
+                                tool_name = intermediate_steps[-1]["tool"]
+                                label = f"完成: {self.TOOL_LABELS.get(tool_name, tool_name)}"
+                                yield {"type": "tool_end", "tool": tool_name, "label": label, "content": content[:200]}
+
+        # 最终输出
+        yield {"type": "thinking", "label": "正在生成分析报告...", "tool": None}
+
+        # 再用 invoke 获取完整消息历史做解析（stream 不返回完整 state）
+        result = self._agent.invoke({"messages": [HumanMessage(content=user_input)]})
+        messages = result.get("messages", [])
+
+        for msg in messages:
+            if hasattr(msg, "content") and not hasattr(msg, "tool_calls") and not (hasattr(msg, "tool_call_id") and msg.tool_call_id):
+                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                if content and len(content) > 20:  # 跳过很短的中间消息
+                    final_output = content
+
+        if not final_output:
+            last_msg = messages[-1] if messages else None
+            if last_msg and hasattr(last_msg, "content"):
+                final_output = last_msg.content if isinstance(last_msg.content, str) else str(last_msg.content)
+
+        parsed = self._parse_steps(intermediate_steps)
+        parsed["output"] = final_output
+        self.last_result = parsed
+        yield {"type": "done", "label": "分析完成", "result": parsed}
+
     def run(self, description: str, plant_name: str = "") -> dict:
+        """非流式执行（兼容旧接口）"""
+        result = None
+        for event in self.run_stream(description, plant_name):
+            if event["type"] == "done":
+                result = event["result"]
+        return result or {}
         """
         执行报修分析。
 
