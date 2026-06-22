@@ -138,6 +138,23 @@ def get_agent():
     return RepairAgent()
 
 
+def friendly_error(error: Exception) -> str:
+    """将技术异常转为中文友好提示"""
+    msg = str(error).lower()
+
+    if "api_key" in msg or "auth" in msg or "unauthorized" in msg or "401" in msg:
+        return "🔑 API Key 无效或过期，请检查 Secrets 中的 DEEPSEEK_API_KEY。"
+    if "insufficient" in msg or "balance" in msg or "quota" in msg or "402" in msg or "429" in msg:
+        return "💰 API 额度不足，请前往 platform.deepseek.com 充值。"
+    if "timeout" in msg or "timed out" in msg or "connect" in msg:
+        return "🌐 API 连接超时，请检查网络或稍后重试。"
+    if "rate" in msg or "limit" in msg:
+        return "⏳ 请求过于频繁，请稍等几秒后再试。"
+    if "json" in msg and "serializable" in msg:
+        return "🔧 数据序列化错误，请刷新页面重试。"
+    return f"❌ {str(error)[:300]}"
+
+
 # ============================================================
 # 辅助组件
 # ============================================================
@@ -344,7 +361,7 @@ with right_col:
             st.rerun()
 
         except Exception as e:
-            st.error(f"分析出错: {str(e)}")
+            st.error(friendly_error(e))
             st.session_state["processing"] = False
 
     # 分类结果卡片
