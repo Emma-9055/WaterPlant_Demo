@@ -2,17 +2,18 @@
 全局配置：LLM 工厂、路径常量、向量存储工厂入口
 
 LLM 后端（通过 LLM_PROVIDER 或云端 Secrets 切换）：
-  1. Groq Cloud（默认）      → 免费 API，跑 Qwen 开源模型，云端部署首选
+  1. DeepSeek（默认）         → 国内直连，便宜，中文强
   2. Ollama 本地              → 零配置本地运行
-  3. Anthropic Claude        → 需 ANTHROPIC_API_KEY
-  4. OpenAI GPT              → 需 OPENAI_API_KEY
+  3. Groq Cloud              → 免费 API，Qwen 开源模型
+  4. Anthropic Claude        → 需 ANTHROPIC_API_KEY
+  5. OpenAI GPT              → 需 OPENAI_API_KEY
 
 用法：
   # 本地开发（.env 自动加载）
   python app.py
 
   # Streamlit Cloud（在 Dashboard 设置 Secrets）
-  GROQ_API_KEY = "gsk_..."
+  DEEPSEEK_API_KEY = "sk-..."
 """
 import os
 from pathlib import Path
@@ -44,13 +45,22 @@ def get_llm():
     返回 LangChain LLM 实例。
     由 LLM_PROVIDER 环境变量决定后端（默认 groq）。
     """
-    provider = os.getenv("LLM_PROVIDER", "groq").lower()
+    provider = os.getenv("LLM_PROVIDER", "deepseek").lower()
     model = os.getenv("LLM_MODEL", "")
 
-    if provider == "groq":
+    if provider == "deepseek":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model or "deepseek-chat",   # DeepSeek V3，支持函数调用
+            temperature=0.1,
+            base_url="https://api.deepseek.com",
+            api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+        )
+
+    elif provider == "groq":
         from langchain_groq import ChatGroq
         return ChatGroq(
-            model=model or "qwen-2.5-32b",  # 开源通义千问，中文能力强
+            model=model or "qwen-2.5-32b",
             temperature=0.1,
         )
 
@@ -78,7 +88,7 @@ def get_llm():
     else:
         raise ValueError(
             f"不支持的 LLM_PROVIDER: {provider}，"
-            f"可选: groq, ollama, anthropic, openai"
+            f"可选: deepseek, groq, ollama, anthropic, openai"
         )
 
 
