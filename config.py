@@ -1,23 +1,37 @@
 """
 全局配置：LLM 工厂、路径常量、向量存储工厂入口
 
-LLM 优先级（开箱即用，无需 API Key）：
-  1. Ollama 本地模型（默认）  → 零配置，开源友好
-  2. Anthropic Claude       → 需 ANTHROPIC_API_KEY
-  3. OpenAI GPT             → 需 OPENAI_API_KEY
+LLM 后端（通过 LLM_PROVIDER 或云端 Secrets 切换）：
+  1. Groq Cloud（默认）      → 免费 API，跑 Qwen 开源模型，云端部署首选
+  2. Ollama 本地              → 零配置本地运行
+  3. Anthropic Claude        → 需 ANTHROPIC_API_KEY
+  4. OpenAI GPT              → 需 OPENAI_API_KEY
 
 用法：
-  # 默认使用 Ollama（需先 ollama pull qwen3）
+  # 本地开发（.env 自动加载）
   python app.py
 
-  # 使用 Anthropic
-  set LLM_PROVIDER=anthropic && python app.py
+  # Streamlit Cloud（在 Dashboard 设置 Secrets）
+  GROQ_API_KEY = "gsk_..."
 """
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ---- Streamlit Cloud 兼容：从 st.secrets 注入环境变量 ----
+def _load_cloud_secrets():
+    """在 Streamlit Cloud 环境下，将 Secrets 注入 os.environ"""
+    try:
+        import streamlit as st
+        for key, val in st.secrets.items():
+            if key not in os.environ or not os.environ[key]:
+                os.environ[key] = str(val)
+    except Exception:
+        pass  # 非 Streamlit 环境，忽略
+
+_load_cloud_secrets()
 
 # --- 路径 ---
 ROOT_DIR = Path(__file__).parent
@@ -28,15 +42,22 @@ FAISS_INDEX_DIR = DATA_DIR / "faiss_index"
 def get_llm():
     """
     返回 LangChain LLM 实例。
-    由 LLM_PROVIDER 环境变量决定后端（默认 ollama）。
+    由 LLM_PROVIDER 环境变量决定后端（默认 groq）。
     """
-    provider = os.getenv("LLM_PROVIDER", "ollama").lower()
+    provider = os.getenv("LLM_PROVIDER", "groq").lower()
     model = os.getenv("LLM_MODEL", "")
 
-    if provider == "ollama":
+    if provider == "groq":
+        from langchain_groq import ChatGroq
+        return ChatGroq(
+            model=model or "qwen-2.5-32b",  # 开源通义千问，中文能力强
+            temperature=0.1,
+        )
+
+    elif provider == "ollama":
         from langchain_ollama import ChatOllama
         return ChatOllama(
-            model=model or "qwen3:8b",   # 开源友好，中文能力强
+            model=model or "qwen3:8b",
             temperature=0.1,
         )
 
@@ -57,7 +78,7 @@ def get_llm():
     else:
         raise ValueError(
             f"不支持的 LLM_PROVIDER: {provider}，"
-            f"可选: ollama, anthropic, openai"
+            f"可选: groq, ollama, anthropic, openai"
         )
 
 
@@ -90,8 +111,8 @@ def get_vector_store():
 
 
 if __name__ == "__main__":
-    print(f"LLM Provider : {os.getenv('LLM_PROVIDER', 'ollama')}")
-    print(f"LLM Model    : {os.getenv('LLM_MODEL', 'qwen3:8b (default)')}")
+    print(f"LLM Provider : {os.getenv('LLM_PROVIDER', 'groq')}")
+    print(f"LLM Model    : {os.getenv('LLM_MODEL', 'qwen-2.5-32b (default)')}")
     print(f"Vector Store : {os.getenv('VECTOR_STORE_BACKEND', 'faiss')}")
     print(f"Data Dir     : {DATA_DIR}")
     print(f"FAISS Dir    : {FAISS_INDEX_DIR}")

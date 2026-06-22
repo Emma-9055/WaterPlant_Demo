@@ -9,8 +9,8 @@ __pycache__/
 dist/
 build/
 
-# FAISS 索引（本地自动生成，不需要提交）
-data/faiss_index/
+# FAISS 索引临时文件（已预构建的索引需提交以加速云端部署）
+data/faiss_index/*.tmp
 
 # IDE
 .vscode/
