@@ -5,6 +5,7 @@ LangChain Agent 工具集（5 个工具）
 """
 import json
 import re
+import numpy as np
 from datetime import datetime
 from langchain_core.tools import tool
 
@@ -12,6 +13,25 @@ from data.seed_data import PLANTS, CATEGORIES, get_plant_by_name
 
 # 内存工单存储（demo 级别，重启清空）
 _work_orders: dict[str, dict] = {}
+
+
+def _safe_json_dumps(obj) -> str:
+    """安全 JSON 序列化，自动转换 numpy 类型"""
+
+    def _convert(o):
+        if isinstance(o, (np.floating,)):
+            return float(o)
+        if isinstance(o, (np.integer,)):
+            return int(o)
+        if isinstance(o, (np.ndarray,)):
+            return o.tolist()
+        if isinstance(o, dict):
+            return {k: _convert(v) for k, v in o.items()}
+        if isinstance(o, (list, tuple)):
+            return [_convert(i) for i in o]
+        return o
+
+    return json.dumps(_convert(obj), ensure_ascii=False)
 
 
 def _classify_with_llm(description: str, llm) -> dict:
@@ -71,7 +91,7 @@ def create_tools(vector_store, llm):
         在收到用户报修描述后应首先调用此工具。
         """
         result = _classify_with_llm(description, llm)
-        return json.dumps(result, ensure_ascii=False)
+        return _safe_json_dumps(result)
 
     @tool
     def search_similar_cases(query: str, k: int = 5) -> str:
@@ -92,7 +112,7 @@ def create_tools(vector_store, llm):
                 "title": r.get("metadata", {}).get("title", ""),
                 "category": r.get("metadata", {}).get("category", ""),
             })
-        return json.dumps(simplified, ensure_ascii=False)
+        return _safe_json_dumps(simplified)
 
     @tool
     def create_work_order(
@@ -127,7 +147,7 @@ def create_tools(vector_store, llm):
             "notes": "",
         }
         _work_orders[order_id] = order
-        return json.dumps(order, ensure_ascii=False)
+        return _safe_json_dumps(order)
 
     @tool
     def get_plant_contact(plant_name: str) -> str:
@@ -139,10 +159,10 @@ def create_tools(vector_store, llm):
         """
         plant = get_plant_by_name(plant_name)
         if plant:
-            return json.dumps(plant, ensure_ascii=False)
+            return _safe_json_dumps(plant)
         # 列出所有水厂
         all_plants = [{"name": p["name"], "contact_person": p["contact_person"], "contact_phone": p["contact_phone"]} for p in PLANTS]
-        return json.dumps({"error": f"未找到匹配 '{plant_name}' 的水厂", "available_plants": all_plants}, ensure_ascii=False)
+        return _safe_json_dumps({"error": f"未找到匹配 '{plant_name}' 的水厂", "available_plants": all_plants})
 
     @tool
     def update_work_order_status(work_order_id: str, new_status: str) -> str:
@@ -152,12 +172,12 @@ def create_tools(vector_store, llm):
         返回：JSON 格式的更新后工单信息。
         """
         if work_order_id not in _work_orders:
-            return json.dumps({"error": f"工单 {work_order_id} 不存在"}, ensure_ascii=False)
+            return _safe_json_dumps({"error": f"工单 {work_order_id} 不存在"})
         valid_statuses = ["待处理", "处理中", "已完成"]
         if new_status not in valid_statuses:
-            return json.dumps({"error": f"无效状态 '{new_status}'，可选: {valid_statuses}"}, ensure_ascii=False)
+            return _safe_json_dumps({"error": f"无效状态 '{new_status}'，可选: {valid_statuses}"})
         _work_orders[work_order_id]["status"] = new_status
-        return json.dumps(_work_orders[work_order_id], ensure_ascii=False)
+        return _safe_json_dumps(_work_orders[work_order_id])
 
     return [
         classify_repair_report,

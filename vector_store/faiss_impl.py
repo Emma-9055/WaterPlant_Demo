@@ -138,8 +138,8 @@ class FAISSVectorStore(VectorStoreBase):
             if idx == -1 or idx not in self._meta:
                 continue
             meta = self._meta[idx]
-            # 距离 → 相似度（L2 归一化向量范围 [0, 2]）
-            similarity = max(0.0, 1.0 - dist / 2.0)
+            # 距离 → 相似度，显式 float() 防止 numpy float32 序列化报错
+            similarity = float(max(0.0, 1.0 - float(dist) / 2.0))
             results.append({
                 "id": meta["id"],
                 "text": meta["text"],
