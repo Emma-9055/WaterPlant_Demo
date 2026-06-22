@@ -10,12 +10,6 @@
 
 基于 **RAG 知识库 + LangChain Agent + Streamlit** 的水厂报修智能分类与工单管理系统。输入报修描述，AI 自动分类故障类型、评估紧急程度、检索历史相似案例、创建工单——全部以卡片形式展示。
 
-## 📸 效果预览
-
-> 🚀 **[在线体验](https://waterplantdemo-ghkyileiap87fcknmmprlu.streamlit.app/)**
-
-> 🚀 **在线体验**: [waterplantdemo.streamlit.app](https://waterplantdemo-ghkyileiap87fcknmmprlu.streamlit.app/)
-
 ## 🎯 功能
 
 | 功能 | 描述 |
