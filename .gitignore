@@ -1,0 +1,24 @@
+# 环境变量（含 API Key，绝对不能提交）
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# FAISS 索引（本地自动生成，不需要提交）
+data/faiss_index/
+
+# IDE
+.vscode/
+.idea/
+
+# Streamlit
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
