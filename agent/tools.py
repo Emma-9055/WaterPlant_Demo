@@ -6,8 +6,11 @@ LangChain Agent 工具集（5 个工具）
 import json
 import re
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from langchain_core.tools import tool
+
+# 北京时间（UTC+8）
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 from data.seed_data import PLANTS, CATEGORIES, get_plant_by_name
 
@@ -131,7 +134,7 @@ def create_tools(vector_store, llm):
         返回：JSON 格式的已创建工单信息，包含工单 ID 和状态。
         对于紧急报修或用户明确要求时调用此工具。
         """
-        order_id = f"WO-{datetime.now().strftime('%Y%m%d')}-{len(_work_orders) + 1:03d}"
+        order_id = f"WO-{datetime.now(BEIJING_TZ).strftime('%Y%m%d')}-{len(_work_orders) + 1:03d}"
         plant = get_plant_by_name(plant_name)
         assigned_to = plant["contact_person"] if plant else "待分配"
 
@@ -143,7 +146,7 @@ def create_tools(vector_store, llm):
             "plant_name": plant_name,
             "status": "待处理",
             "assigned_to": assigned_to,
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "created_at": datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S"),
             "notes": "",
         }
         _work_orders[order_id] = order
