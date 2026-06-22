@@ -16,8 +16,8 @@ data/faiss_index/*.tmp
 .vscode/
 .idea/
 
-# Streamlit
-.streamlit/
+# Streamlit（config.toml 需提交用于云端部署）
+.streamlit/secrets.toml
 
 # OS
 .DS_Store
