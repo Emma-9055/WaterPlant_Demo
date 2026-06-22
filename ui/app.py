@@ -199,7 +199,9 @@ with st.sidebar:
     for label, text in examples.items():
         if st.button(f"📌 {label}", key=f"ex_{label}", use_container_width=True):
             st.session_state["example"] = text
-            st.session_state["example_plant"] = text[:4] if text[:4] in [p["name"][:2] for p in PLANTS] else ""
+            # 从示例文本中提取水厂名称
+            plant = get_plant_by_name(text[:4])
+            st.session_state["example_plant"] = plant["name"] if plant else ""
 
     st.divider()
     st.subheader("📊 工单概览")
