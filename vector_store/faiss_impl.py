@@ -76,6 +76,8 @@ class FAISSVectorStore(VectorStoreBase):
         )
         snapshots = os.path.join(cache_path, "snapshots")
         return os.path.isdir(snapshots) and len(os.listdir(snapshots)) > 0
+
+    def _init_tfidf(self):
         """初始化 TF-IDF 向量器（轻量降级方案）"""
         from sklearn.feature_extraction.text import TfidfVectorizer
         self._tfidf = TfidfVectorizer(
