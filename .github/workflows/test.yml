@@ -9,6 +9,8 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
+
     steps:
       - uses: actions/checkout@v4
 
@@ -17,10 +19,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt --quiet
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
 
-      - name: Run verification
-        run: |
-          python test_verify.py
+      - name: Install dependencies
+        run: pip install -r requirements.txt --quiet
+
+      - name: Run verification (lightweight TF-IDF mode)
+        env:
+          PYTHONIOENCODING: utf-8
+          HF_HUB_OFFLINE: "1"
+        run: python test_verify.py
